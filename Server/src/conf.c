@@ -607,6 +607,10 @@ NDECL(cf_init)
     strcpy( mudconf.sqlite_db_path, "sqlite" );
 #endif /* SQLITE */
 
+#ifdef RHOST_MYSQL
+    mudconf.mysql_query_limit = 5;
+#endif /* RHOST_MYSQL */
+
     /* maximum logs allowed per command */
     mudconf.log_maximum = 1;
     mudconf.cluster_cap = 10;	/* Cap of cluster wait in seconds for action */
@@ -4575,6 +4579,12 @@ CONF conftable[] =
      cf_int, CA_GOD | CA_IMMORTAL, (int*) mudconf.sqlite_db_path, 128, 0, CA_WIZARD,
      (char *) "Path to the directory to store SQLite database files, relative to game/" },
 #endif /*SQLITE*/
+#ifdef RHOST_MYSQL
+    {(char *) "mysql_query_limit",
+     cf_int, CA_GOD | CA_IMMORTAL, &mudconf.mysql_query_limit, 0, 0, CA_WIZARD,
+     (char *) "Maximum time in seconds that a MySQL query may run.\r\n"\
+              "                             Default: 5   Value: %d"},
+#endif /*RHOST_MYSQL*/
 #ifdef REALITY_LEVELS
     {(char *) "reality_compare",
      cf_int, CA_GOD | CA_IMMORTAL, &mudconf.reality_compare, 0, 0, CA_WIZARD,
