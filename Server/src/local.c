@@ -27,10 +27,20 @@
        extern void local_sqlite_init(void);
 #endif /* SQLITE */
 
+#ifdef RHOST_MYSQL
+       extern void local_mysql_init(void);
+#endif /* RHOST_MYSQL */
+
 void local_startup(void) {
+
 #ifdef SQLITE
    local_sqlite_init();
 #endif /* SQLITE */
+
+#ifdef RHOST_MYSQL
+   local_mysql_init();
+#endif /* RHOST_MYSQL */
+
    load_regexp_functions();
 }
 
