@@ -1262,8 +1262,8 @@ setdefaults() {
 
   if [ "${XB[1]}" = "X" ]
   then
-   echo "Patching MySQL linker definitions..."
-   MORELIBS="$(mysql_config --libs) ${MORELIBS}"
+    echo "Patching MySQL linker definitions..."
+    MORELIBS="$(mysql_config --libs) ${MORELIBS}"
   fi
 
   BOB1=$(uname -r|cut -f1 -d".")
