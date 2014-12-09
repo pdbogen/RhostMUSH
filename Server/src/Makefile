@@ -74,13 +74,13 @@ D_SRC	= door.c shs.c mushcrypt.c news.c mail.c mailfix.c debug.c senses.c \
           sqlite.c $(DR_SRC)
 
 D_OBJ	= door.o shs.o mushcrypt.o news.o mail.o mailfix.o debug.o senses.o \
-	  create.o game.o help.o look.o match.o move.o player.o predicates.o \
-	  rob.o set.o speech.o wiz.o walkdb.o timer.o boolexp.o log.o cque.o \
-	  unparse.o eval.o command.o wild.o netcommon.o functions.o vattr.o \
-	  db.o db_rw.o compress.o stringutil.o object.o conf.o flags.o htab.o \
+          create.o game.o help.o look.o match.o move.o player.o predicates.o \
+          rob.o set.o speech.o wiz.o walkdb.o timer.o boolexp.o log.o cque.o \
+          unparse.o eval.o command.o wild.o netcommon.o functions.o vattr.o \
+          db.o db_rw.o compress.o stringutil.o object.o conf.o flags.o htab.o \
           compat.o file_c.o player_c.o bsd.o alloc.o autoreg.o levels.o \
-          local.o utils.o pcre.o pcre_extensions.o tprintf.o sha1.o 64btime.o \
-          sqlite.o $(DR_OBJ)
+          local.o mysql.o utils.o pcre.o pcre_extensions.o tprintf.o sha1.o \
+          64btime.o sqlite.o $(DR_OBJ)
 
 D_INC	= door.h shs.h news.h mail.h debug.h \
 	  copyright.h flags.h help.h htab.h interface.h match.h functions.h \
