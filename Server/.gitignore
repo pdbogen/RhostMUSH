@@ -1,0 +1,8 @@
+src/gdbm-1.8.3
+game/oldlogs
+src/make.defs
+src/do_compile.defs
+game/txt/.*.indx
+game/netrhost.log
+game/netrhost.log.old
+src/buildnum.data
