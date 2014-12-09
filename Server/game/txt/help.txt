@@ -3140,6 +3140,11 @@
      pass the lock, you will be unable to use that object.  If the lock does
      not exist, then anyone will be able to use that object.
   
+  Special:  %0 is passed into evaluation locks for uselocks.  The values exist:
+     0 -- Default.  Neither a $command or a ^listen (like when you do 'use')
+     1 -- $command was triggered
+     2 -- ^listen was triggered
+    
   See Also: SHOWFAILCMD
  
 & @lock type TportLock
@@ -3324,6 +3329,11 @@
               !<key>
               ( <key> )
   
+  Note: Evaluation locks pass '%0' for uselocks.  
+        0 -- default (like when using 'use')
+        1 -- $command is checked
+        2 -- ^listen is checked
+   
 & @lock attribute
   ATTRIBUTE LOCKS:
  
@@ -7422,6 +7432,8 @@
   switch (ROYALTY and SUPER-ROYALTY only) will go through the NO_WALLS
   flag.
   
+  This flag will also muffle @dump messages.
+  
   See Also: NO_YELL, @wall
   
 & CLOAK
@@ -10270,6 +10282,11 @@
   
   See Also: WHO, DOING, conn(), idle()
  
+& ALIGN()
+  RhostMUSH has no built in align(). 
+  
+  See 'help printf()'
+
 & PRINTF()
   Function: printf(<format string>,<arg1> [,<arg2>, ..., <argN>])
   
@@ -10280,6 +10297,7 @@
   ALL AVAILABLE CODES:  help printf codelist  (very handy!)
   FORMAT SYNTAX:        help printf syntax
   EXAMPLES:             help printf examples
+                        help printf penn      (for penn align-like examples)
   
   See Also: center(), just(), rjust(), rjc(), ljc(), wrap(), columns(), 
             wrapcolumns(), array()
@@ -10385,26 +10403,70 @@
                                            |15 16 17 18 |
                                            |19          |
   
-{ 'help printf examples2' for more examples }
+{ 'help printf examples2' for more examples (that mimic penn's align) }
 
+& PRINTF PENN
 & PRINTF EXAMPLES2
   Function: printf(<format string>,<arg1> [,<arg2>, ..., <argN>])
   
   Examples: (continued)
+    > &line me=[printf(\($1s\) $-10|s $s,get(%0/sex),name(%0),name(loc(%0)))]
+    > th iter(lwho(),u(line,##),%b,%r)
+      (M) Walker     Tree
+      (M) Ashen-Shug Apartment 306
+          ar
+      (F) Jane Doe   Nowhere
+  
+    > &line me=[printf(\($1s\) $-10s $s,get(%0/sex),name(%0),name(loc(%0)))]
+    > th iter(lwho(),u(line,##),%b,%r)
+      (M) Walker     Tree
+      (M) Ashen-Shug Apartment 306
+      (F) Jane Doe   Nowhere
+  
+    > think printf($15:x:sx$-60:x:s,Walker,Staff & Developer)
+    xxxxxxxxxWalkerxStaff & Developerxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+  
+    > think printf($15:x:sx$s,Walker,Staff & Developer)
+    xxxxxxxxxWalkerxStaff & Developer
+  
+{ 'help printf examples3' for more examples (that mimic penn's align) }
+  'help printf penn2' will show the same file
+
+& PRINTF PENN2
+& PRINTF EXAMPLES3
+  Function: printf(<format string>,<arg1> [,<arg2>, ..., <argN>])
+  
+  Examples: (continued)
+    > &haiku me = Alignment function,%rIt justifies your writing,%rBut the
+                  words still suck.%rLuke
+    > think printf($&1:+:s$&^40s$1&:+:s,%r,
+                   [repeat(-,40)]%r[u(haiku)]%r[repeat(-,40)],%r)
+    +----------------------------------------+
+    +          Alignment function,           +
+    +       It justifies your writing,       +
+    +       But the words still suck.        +
+    +                  Luke                  +
+    +----------------------------------------+
+  
     > &dropcap me=%b_______%r|__%b%b%b__|%r%b%b%b|%b|%r%b%b%b|_|
     > &story me=%r'was the night before Christmas, when all through the house%r
                 Not a creature was stirring, not even a mouse.%r
                 The stockings were hung by the chimney with care,%r
                 In hopes that St Nicholas soon would be there.
     > @emit printf($&-9's$&-68s,ansi(ch,u(dropcap)),u(story))
+    Note: The large 'T' will be in highlighted cyan.
      _______                                                                      
     |__   __|'was the night before Christmas, when all through the house         
        | |   Not a creature was stirring, not even a mouse.                      
        |_|   The stockings were hung by the chimney with care,                   
     In hopes that St Nicholas soon would be there.    
-    
-    Note: The large 'T' will be in highlighted cyan.
   
+{ 'help printf examples4' for more examples }
+  
+& PRINTF EXAMPLES4
+  Function: printf(<format string>,<arg1> [,<arg2>, ..., <argN>])
+  
+  Examples: (continued)
     > @emit printf($1&s$:[ansi(+purple,+,hb,.,g,-,+orange,`,+indianred,~)]:&_50s
                    $1&s,ansi(+pink,@%r@%r@),ansi(hu+red,A B C 1 2 3%r1),
                    ansi(+pink,@%r@%r@))
@@ -10422,10 +10484,10 @@
           The 'A B C 1 2 3' and the '1' are justified across 50 characters.
               -- They are also underscored and highlighted red.
               -- Padding is aligned properly.
-
-{ 'help printf examples3' for more examples }
   
-& PRINTF EXAMPLES3
+{ 'help printf examples5' for more examples }
+  
+& PRINTF EXAMPLES5
   Function: printf(<format string>,<arg1> [,<arg2>, ..., <argN>])
   
   Examples: (continued)
@@ -10450,7 +10512,7 @@
     +c. this is a test a +
     +b c. this is a test +
     +a b c.              +
- 
+   
   Note: Notice that it keeps track of all padding in the original
         string and will not remove the spaces (as intended).  
   
@@ -10458,9 +10520,9 @@
         out as long as there's other columns expanding.  This behavior can 
         be omitted with a '!' as first filler char. 
   
-{ 'help printf examples4' for a multi-border multi-line complex example } 
+{ 'help printf examples6' for a multi-border multi-line complex example } 
  
-& PRINTF EXAMPLES4
+& PRINTF EXAMPLES6
   Function: printf(<format string>,<arg1> [,<arg2>, ..., <argN>])
   
   Advanced Example: 
@@ -12605,18 +12667,23 @@ See Also: timefmt()
   See also: match(), matchall(), grab(), regmatch()
 
 & GREP()
-  Function: grep(<object>, <attribute(s)>, <pattern>)
+  Function: grep(<object>, <attribute(s)>, <pattern> [,<key>])
    
   This returns a list of any matching attribute that matches the
   <attribute(s)> that contain <pattern>.  The <attribute> may be wildcarded
   with a '*' or a '?' for multiple character matches and single character
   matches respectively.  In addition, the pattern may also be wildcarded.
    
+  If <key> is specified as '1', it will no longer assume a wildcard match
+  unless explicitly given.
+   
   Examples:
     > @va me=This is a test
     > @vb me=This is another test.
     > @vc me=Test Test Test whisooo!
     > say grep(me,v*,is)
+    You say "VA VB VC"
+    > say grep(me,v*,is,1)
     You say "VA VB"
     > say grep(me,v*,*is*)
     You say "VA VB VC"
@@ -12628,24 +12695,30 @@ See Also: timefmt()
   See Also: pgrep(), regrep(), regrepi(), grab(), match(), lattr(), @grep
   
 & PGREP()
-  Function: pgrep(<object>, <attribute(s)>, <pattern> [,<type> [,<delim>]])
+  Function: pgrep(<object>, <attr(s)>, <pattern> [,<type> [,<delim> [,<key>]]])
   
   This function behaves just like the normal grep() function except it 
   transverses all parents for the grep that returns a list of any matching 
-  attribute that matches the <attribute(s)> that contain <pattern>.  The 
-  <attribute> may be wildcarded with a '*' or a '?' for multiple character 
-  matches and single character matches respectively.  In addition, the 
-  pattern may also be wildcarded.  You may specify an optional output
-  delimiter.  The valid types are:
+  attribute that matches the <attr(s)> that contain <pattern>.  The <attr> 
+  may be wildcarded with a '*' or a '?' for multiple character matches and 
+  single character matches respectively.  In addition, the pattern may also 
+  be wildcarded.  You may specify an optional output delimiter.  
+  The valid types are:
       0 - show just matched attributes (default)
       1 - show the dbref# then matching attributes after it in sets
       2 - show the attributes in a dbref#/attribute pattern.
-   
+  
+  By default, grep assumes the pattern is always wildcarded.  You may specify
+  the key of '1' to disable assumped wildcarding and enforce literal wildcard
+  placement.
+    
   Examples:
     > @va me=This is a test
     > @vb me=This is another test.
     > @vc me=Test Test Test whisooo!
     > say pgrep(me,v*,is)
+    You say "VA VB VC"
+    > say pgrep(me,v*,is,,,1)
     You say "VA VB"
     > say pgrep(me,v*,*is*)
     You say "VA VB VC"
@@ -20575,7 +20648,7 @@ columns(<tx>,<wd>,<co>,<js>,<crp>,<ct>,<lb>,<mb>,<rb>,<dsp>,<del>,<fil>,<ext>)
             cluster_flags(), cluster_hasflag(), cluster_add()
 
 & CLUSTER_GREP()
-  Function: cluster_grep(<object>, <attribute(s)>, <pattern> [,<type>])
+  Function: cluster_grep(<object>, <attribute(s)>, <pattern> [,<type> [,<key>]])
    
   This returns a list of any matching attribute in a cluster that matches the
   <attribute(s)> that contain <pattern>.  The <attribute> may be wildcarded
@@ -20585,12 +20658,17 @@ columns(<tx>,<wd>,<co>,<js>,<crp>,<ct>,<lb>,<mb>,<rb>,<dsp>,<del>,<fil>,<ext>)
     0 - show attributes matching pattern (default)
     1 - show the dbref# then all matching attributes after it
     2 - show the attributes in the form dbref#/pattern
+  
+  You may specify 'key' to '1' to remove assumed wildcard matches and require
+  literal wildcard placements.
    
   Examples:
     > @va cluster#1=This is a test
     > @vb cluster#2=This is another test.
     > @vc cluster#3=Test Test Test whisooo!
     > say cluster_grep(cluster#1,v*,is)
+    You say "VA VB VC"
+    > say cluster_grep(cluster#1,v*,is,,1)
     You say "VA VB"
     > say cluster_grep(cluster#2,v*,*is*)
     You say "VA VB VC"
@@ -26843,7 +26921,10 @@ New Features
   for @flagdef [ASH]
 * toggle_access_set, toggle_access_unset, toggle_access_see params 
   for @toggledef [ASH]
-  
+* tor_localhost, tor_paranoid for dynamic live TOR proxy protection [ASH]
+* float_precision for floating point decimal precision (default 6) [ASH]
+* file_object parameter to specify dynamic override for connect.txt and friends [ASH]
+
 Changes
 -------
 * LBUFS are now capable of > 4K with QDBM [AMB]
@@ -26881,6 +26962,15 @@ Changes
 * @flagdef now will give you the resulting flags that are assigned on set [ASH]
 * reality levels read 0x00000000 notation to mirror @list rlevel in conf 
   file for those who find the math of hexidecimal to decimal difficult [ASH]
+* uselock evaluation locks pass '0' for default, '1' for command and
+  '2' for listens for @lock/use only [ASH]
+* @reboot/silent is more verbose to the player initiating it [ASH]
+* The help entry was wrong for grep() and associated functions with
+  it handling non-wild args.  This is now allowed with optional arg [ASH]
+* getfrom lock now properly handles @fail/@ofail/@afail messages [ASH]
+* NO_WALLS properly muffles @dump messages [ASH]
+* clients that did not do CRLF didn't handle null entries correctly [ASH]
+* *_site admin params raised from 1000 chars to LBUF_SIZE [ASH]
   
 Bug Fixes
 ---------
@@ -26905,3 +26995,10 @@ Bug Fixes
 * ! syntax to printf filler was broken from ansi rewrite [ASH]
 * wrapcolumns() didn't handle CR/LF correctly for potatoe clients (only) [ASH]
 * flag_name could crash the mush if fed invalid arg in the .conf file [ASH]
+* small chance of crash with player undefined for @reboot/silent [ASH]
+* crash bug in tel() due to a typo fixed [ASH]
+* mid() had an unitialized field when fetching outside of length (non-crash) [ASH]
+* off by one bug for handling accented characters in ansi translator backcode [ASH]
+* MONITOR_SITE was not handled by master toggle MONITOR [ASH]
+* creplace() was hardcoded with LBUF of 4000 chars [ASH]
+* some better cleanup of other functions for LBUF sizing [ASH]

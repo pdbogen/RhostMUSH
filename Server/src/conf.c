@@ -281,12 +281,18 @@ NDECL(cf_init)
     mudconf.icmd_obj = -1;		/* @icmd eval object */
     mudconf.ansi_txtfiles = 0;		/* ANSI textfile support */
     mudconf.list_max_chars = 1000000;	/* Let's allow 1 million characters */
+    mudconf.tor_paranoid = 0;
+    mudconf.float_precision = 6;		/* Precision of math functions */
+    mudconf.file_object = -1;		/* File object for @list_file overloading */
     memset(mudconf.sub_include, '\0', sizeof(mudconf.sub_include));
     memset(mudconf.cap_conjunctions, '\0', sizeof(mudconf.cap_conjunctions));
     memset(mudconf.cap_articles, '\0', sizeof(mudconf.cap_articles));
     memset(mudconf.cap_preposition, '\0', sizeof(mudconf.cap_preposition));
     memset(mudconf.atrperms, '\0', sizeof(mudconf.atrperms));
+    memset(mudconf.tor_localhost, '\0', sizeof(mudconf.tor_localhost));
+    memset(mudstate.tor_localcache, '\0', sizeof(mudstate.tor_localcache));
     mudstate.insideaflags = 0;		/* inside @aflags eval check */
+    mudstate.insideicmds = 0;		/* inside @icmd eval check */
     mudstate.dumpstatechk = 0;		/* State of the dump state */
     mudstate.forceusr2 = 0;		/* Forcing kill USR2 here */
     mudstate.breakst = 0;
@@ -1453,7 +1459,7 @@ CF_HAND(cf_dynstring)
 {
    int retval, chkval, addval, first, second, third;
    char *buff, *tbuff, *buff2, *tbuff2, *stkbuff, *abuf1, *abuf2, *abuf3, *tabuf2, *tabuf3;
-   char quick_buff[1002];
+   char quick_buff[LBUF_SIZE+2];
 
    chkval = retval = addval = 0;
    if ( strcmp( str, "!ALL" ) == 0 ) {
@@ -3042,7 +3048,7 @@ CF_HAND(cf_site)
 	cf_log_syntax(player, cmd, "Bad host address: %s", addr_txt);
 	return -1;
     }
-    head = (SITE *) * vp;
+    head = (SITE *) (pmath2)*vp;
     /* Parse the access entry and allocate space for it */
 
     site = (SITE *) malloc(sizeof(SITE));
@@ -3518,6 +3524,10 @@ CONF conftable[] =
     {(char *) "fascist_teleport",
      cf_bool, CA_GOD | CA_IMMORTAL, &mudconf.fascist_tport, 0, 0, CA_PUBLIC,
      (char *) "Is @teleport limited to jump_ok only?"},
+    {(char *) "file_object",
+     cf_int, CA_GOD | CA_IMMORTAL, &mudconf.file_object, 0, 0, CA_PUBLIC,
+     (char *) "The object to specify connect screen foo override.\r\n"\
+              "                             Default: -1   Value: %d"},
     {(char *) "find_money_chance",
      cf_int, CA_GOD | CA_IMMORTAL, &mudconf.payfind, 0, 0, CA_PUBLIC,
      (char *) "Chance to find money when you move. (1/X)\r\n"\
@@ -3551,7 +3561,7 @@ CONF conftable[] =
      H_FORBIDDEN, 0, CA_WIZARD,
      (char *) "This specifies sites for forbid."},
     {(char *) "forbid_host",
-     cf_dynstring, CA_GOD | CA_IMMORTAL, (int *) mudconf.forbid_host, 1000, 0, CA_WIZARD,
+     cf_dynstring, CA_GOD | CA_IMMORTAL, (int *) mudconf.forbid_host, LBUF_SIZE-1, 0, CA_WIZARD,
      (char *) "This specifies sites by NAME to forbid."},
     {(char *) "fork_dump",
      cf_bool, CA_GOD | CA_IMMORTAL, &mudconf.fork_dump, 0, 0, CA_PUBLIC,
@@ -3667,7 +3677,7 @@ CONF conftable[] =
      cf_badname, CA_GOD | CA_IMMORTAL, NULL, 1, 0, CA_WIZARD,
      (char *) "Remove names from the bad_name list."},
     {(char *) "goodmail_host",
-     cf_dynstring, CA_GOD | CA_IMMORTAL, (int *) mudconf.goodmail_host, 1000, 0, CA_WIZARD,
+     cf_dynstring, CA_GOD | CA_IMMORTAL, (int *) mudconf.goodmail_host, LBUF_SIZE-1, 0, CA_WIZARD,
      (char *) "Mail addresses to ALLOW ALWAYS from autoreg."},
     {(char *) "guest_file",
      cf_string, CA_DISABLED, (int *) mudconf.guest_file, 32, 0, CA_WIZARD,
@@ -3968,6 +3978,12 @@ CONF conftable[] =
     {(char *) "mux_lcon_compat",
      cf_bool, CA_GOD | CA_IMMORTAL, &mudconf.mux_lcon_compat, 0, 0, CA_WIZARD,
      (char *) "Does children() behave like MUX's?"},
+    {(char *) "tor_localhost",
+     cf_dynstring, CA_GOD | CA_IMMORTAL, (int *) mudconf.tor_localhost, 1000, 0, CA_WIZARD,
+     (char *) "This specifies local DNS sites by NAME to do TOR comparisons."},
+    {(char *) "tor_paranoid",
+     cf_bool, CA_GOD | CA_IMMORTAL, &mudconf.tor_paranoid, 0, 0, CA_WIZARD,
+     (char *) "Are TOR Sites aggressively verified on reverse DNS?"},
     {(char *) "news_file",
      cf_string, CA_DISABLED, (int *) mudconf.news_file, 32, 0, CA_WIZARD,
      (char *) "File used for news."},
@@ -3994,10 +4010,10 @@ CONF conftable[] =
      H_NOAUTOREG, 0, CA_WIZARD,
      (char *) "Specify sites to block autoregistration."},
     {(char *) "noautoreg_host",
-     cf_dynstring, CA_GOD | CA_IMMORTAL, (int *) mudconf.autoreg_host, 1000, 0, CA_WIZARD,
+     cf_dynstring, CA_GOD | CA_IMMORTAL, (int *) mudconf.autoreg_host, LBUF_SIZE-1, 0, CA_WIZARD,
      (char *) "Specify site NAMES to block autoregistration."},
     {(char *) "nobroadcast_host",
-     cf_dynstring, CA_GOD | CA_IMMORTAL, (int *) mudconf.nobroadcast_host, 1000, 0, CA_WIZARD,
+     cf_dynstring, CA_GOD | CA_IMMORTAL, (int *) mudconf.nobroadcast_host, LBUF_SIZE-1, 0, CA_WIZARD,
      (char *) "This specifies sites by NAME to not MONITOR."},
     {(char *) "nodns_site",
      cf_site, CA_GOD | CA_IMMORTAL, (int *) &mudstate.special_list,
@@ -4008,7 +4024,7 @@ CONF conftable[] =
      H_NOGUEST, 0, CA_WIZARD,
      (char *) "Specify sites to block guest connections."},
     {(char *) "noguest_host",
-     cf_dynstring, CA_GOD | CA_IMMORTAL, (int *) mudconf.noguest_host, 1000, 0, CA_WIZARD,
+     cf_dynstring, CA_GOD | CA_IMMORTAL, (int *) mudconf.noguest_host, LBUF_SIZE-1, 0, CA_WIZARD,
      (char *) "Specify site NAMES to block guest connections"},
     {(char *) "nonindxtxt_maxlines",
      cf_int, CA_GOD | CA_IMMORTAL, &mudconf.nonindxtxt_maxlines, 0, 0, CA_IMMORTAL,
@@ -4162,6 +4178,9 @@ CONF conftable[] =
     {(char *) "power_objects",
      cf_bool, CA_GOD | CA_IMMORTAL, &mudconf.power_objects, 0, 0, CA_WIZARD,
      (char *) "Can objects have @powers and @depowers?"},
+    {(char *) "float_precision",
+     cf_verifyint, CA_GOD | CA_IMMORTAL, &mudconf.float_precision, 48, 1, CA_WIZARD,
+     (char *) "The decimal placement of float precision for math functions.   Default: 0   Value: %d"},
     {(char *) "public_flags",
      cf_bool, CA_GOD | CA_IMMORTAL, &mudconf.pub_flags, 0, 0, CA_WIZARD,
      (char *) "Players can get flags on anything?"},
@@ -4208,7 +4227,7 @@ CONF conftable[] =
      H_REGISTRATION, 0, CA_WIZARD,
      (char *) "Site permissions for registration."},
     {(char *) "register_host",
-     cf_dynstring, CA_GOD | CA_IMMORTAL, (int *) mudconf.register_host, 1000, 0, CA_WIZARD,
+     cf_dynstring, CA_GOD | CA_IMMORTAL, (int *) mudconf.register_host, LBUF_SIZE-1, 0, CA_WIZARD,
      (char *) "Site permissions for NAME registration."},
     {(char *) "regtry_limit",
      cf_int, CA_GOD | CA_IMMORTAL, &mudconf.regtry_limit, 0, 0, CA_WIZARD,
@@ -4388,7 +4407,7 @@ CONF conftable[] =
      H_SUSPECT, 0, CA_WIZARD,
      (char *) "Site list for specifying suspects."},
     {(char *) "suspect_host",
-     cf_dynstring, CA_GOD | CA_IMMORTAL, (int *) mudconf.suspect_host, 1000, 0, CA_WIZARD,
+     cf_dynstring, CA_GOD | CA_IMMORTAL, (int *) mudconf.suspect_host, LBUF_SIZE-1, 0, CA_WIZARD,
      (char *) "Site NAME list for specifying suspects."},
     {(char *) "sweep_dark",
      cf_bool, CA_GOD | CA_IMMORTAL, &mudconf.sweep_dark, 0, 0, CA_PUBLIC,
@@ -4447,7 +4466,7 @@ CONF conftable[] =
      (pmath2) attraccess_nametab, 0, CA_WIZARD,
      (char *) "Default permissions for user-attributes."},
     {(char *) "validate_host",
-     cf_dynstring, CA_GOD | CA_IMMORTAL, (int *) mudconf.validate_host, 1000, 0, CA_WIZARD,
+     cf_dynstring, CA_GOD | CA_IMMORTAL, (int *) mudconf.validate_host, LBUF_SIZE-1, 0, CA_WIZARD,
      (char *) "Mail addresses to block from autoreg."},
     {(char *) "vattr_limit_checkwiz",
      cf_bool, CA_GOD | CA_IMMORTAL, &mudconf.vattr_limit_checkwiz, 0, 0, CA_WIZARD,
