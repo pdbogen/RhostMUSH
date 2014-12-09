@@ -116,7 +116,7 @@ DEF[22]="-DMUXCRYPT"
 DEF[23]=""
 DEF[24]=""
 DEF[25]="-DPCRE_BUILTIN"
-DEFB[1]="\$(MYSQL_DEFS)"
+DEFB[1]="-DRHOST_MYSQL \$(shell mysql_config --cflags)"
 DEFB[2]="\$(DR_DEF)"
 DEFB[3]="-DSBUF64"
 DEFB[4]="-DSQLITE"
@@ -208,7 +208,7 @@ echo "[${X[19]}] 19. Disable DebugMon   [${X[20]}] 20. Disable SIGNALS    [${X[2
 echo "[${X[22]}] 22. Read Mux Passwds   [${X[23]}] 23. Low-Mem Compile    [${X[24]}] 24. Disable OpenSSL"
 echo "[${X[25]}] 25. Pcre System Libs"
 echo "--------------------------- Beta/Unsupported Additions -----------------------"
-echo "[${XB[1]}] B1. 3rd Party MySQL    [${XB[2]}] B2. Door Support(Menu) [${XB[3]}] B3. 64 Char attribs"
+echo "[${XB[1]}] B1. MySQL Support      [${XB[2]}] B2. Door Support(Menu) [${XB[3]}] B3. 64 Char attribs"
 echo "[${XB[4]}] B4. SQLite Support     [${XB[5]}] B5. QDBM DB Support    [#] B6. LBUF Settings (Menu)"
 echo "------------------------------------------------------------------------------"
 echo ""
@@ -278,10 +278,8 @@ info() {
             echo ""
          elif [ $RUNBETA -eq 1 ]
          then
-            echo "This enables you to automatically include the MYSQL definitions"
-            echo "to the DEFs line in the Makefile.  This is to support if you have"
-            echo "this package installed and should only be used then.  Otherwise,"
-            echo "it's safe to leave it at the default."
+            echo "This enables support for MySQL in Softcode, with syntax and semantics"
+            echo "similar to that of SQLite."
          else
             echo "Sideeffects are functions like set(), pemit(), create(), and the like."
             echo "This must be enabled to be able to use these functions.  In addition,"
@@ -1261,6 +1259,13 @@ setdefaults() {
         MORELIBS="-lsqlite3 ${MORELIBS}"
      fi
   fi
+
+  if [ "${XB[1]}" = "X" ]
+  then
+   echo "Patching MySQL linker definitions..."
+   MORELIBS="$(mysql_config --libs) ${MORELIBS}"
+  fi
+
   BOB1=$(uname -r|cut -f1 -d".")
   BOB2=$(uname -s)
   if [ -d /usr/ucbinclude -a "${BOB2}" = "SunOS" ]
