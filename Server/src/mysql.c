@@ -134,7 +134,42 @@ FUNCTION(local_fun_mysql_query)
 
 	mysql_db = rhost_mysql_connect( hostname, username, password, database, &buff, &bufcx );
 
-   return;
+FUNCTION(local_fun_sql_escape) {
+  int retries;
+  static char bigbuff[LBUF_SIZE * 2 + 1], *s_localchr;
+
+  if (!fargs[0] || !*fargs[0])
+    return;
+
+  memset(bigbuff, '\0', sizeof(bigbuff));
+
+  if (!mysql_struct) {
+    /* Try to reconnect. */
+    retries = 0;
+    while ((retries < MYSQL_RETRY_TIMES) && !mysql_struct) {
+      nanosleep((struct timespec[]){{0, 900000000}}, NULL)
+      sql_init(cause);
+      retries++;
+    }
+  }
+
+  if (!mysql_struct || (mysql_ping(mysql_struct) != 0)) {
+    safe_str("#-1 NO CONNECTION", buff, bufcx);
+    mysql_struct = NULL;
+    return;
+  }
+  
+  s_localchr = alloc_lbuf("local_fun_sql_escape");
+  memset(s_localchr, '\0', LBUF_SIZE);
+  strncpy(s_localchr, fargs[0], LBUF_SIZE-2);
+  if (mysql_real_escape_string(mysql_struct, bigbuff, s_localchr, strlen(s_localchr)) < LBUF_SIZE) {
+    bigbuff[LBUF_SIZE - 1] = '\0';
+    bigbuff[LBUF_SIZE - 2] = '\0';
+    safe_str(bigbuff, buff, bufcx);
+  } else {
+    safe_str("#-1 TOO LONG", buff, bufcx);
+  }
+  free_lbuf(s_localchr);
 }
 
 void local_mysql_init(void) {
@@ -214,15 +249,223 @@ MYSQL * rhost_mysql_connect( const char * hostname, const char * username, const
 
    DEBUG_MYSQL( "Beginning connection process..." );
 
-   // FIXME: Look for existing connection
+  mysql_close(mysql_struct);
+  mysql_struct = NULL;
+  return 0;
+}
+ 
+static int sql_init(dbref player) {
+  MYSQL *result;
+  
+  /* If we are already connected, drop and retry the connection, in
+   * case for some reason the server went away.
+   */
+  
+  if (mysql_struct)
+    sql_shutdown(player);
+  
+  /* Try to connect to the database host. If we have specified
+   * localhost, use the Unix domain socket instead.
+   */
+  
+  mysql_struct = mysql_init(mysql_struct);
+  
+  result = mysql_real_connect(mysql_struct, DB_HOST, DB_USER, DB_PASS, DB_BASE,
+ 			      3306, DB_SOCKET, 0);
+  
+  if (!result) {
+    STARTLOG(LOG_PROBLEMS, "SQL", "ERR");
+    log_text(unsafe_tprintf("DB connect by %s : ", player < 0 ? "SYSTEM" : Name(player)));
+    log_text("Failed to connect to SQL database.");
+    ENDLOG
+    return -1;
+  } else {
+    STARTLOG(LOG_PROBLEMS, "SQL", "INF");
+    log_text(unsafe_tprintf("DB connect by %s : ", player < 0 ? "SYSTEM" : Name(player)));
+    log_text("Connected to SQL database.");
+    ENDLOG
+  }
+  
+  numConnectionsMade++;
+  lastConnectMadeBy = player;
+  numRowsRetrieved = queryCount = 0;
+  return 1;
+}
 
-   // Look for free slot
-   if( poolEntry == NULL ) {
-      for( i = 0; i < MYSQL_POOL_SIZE; i++ ) {
-         if( mysql_pool[i].status == unused ) {
-            snprintf( tempbuff, LBUF_SIZE, "Located unused pool slot %d", i );
-            DEBUG_MYSQL( tempbuff );
-            poolEntry = &mysql_pool[i];
+#define print_sep(s,b,p) \
+ if (s) { \
+     if (s != '\n') { \
+       safe_chr(s,b,p); \
+     } else { \
+       safe_str((char *) "\n",b,p); \
+     } \
+ }
+ 
+static int sql_query(dbref player, 
+		     char *q_string, char row_delim, char field_delim, char *buff, char **bp) {
+  MYSQL_RES *qres;
+  MYSQL_ROW row_p;
+  int num_rows, got_rows, got_fields;
+  int i, j;
+  int retries;
+  char *tpr_buff, *tprp_buff, *s_qstr;
+  
+  /* If we have no connection, and we don't have auto-reconnect on
+   * (or we try to auto-reconnect and we fail), this is an error
+   * generating a #-1. Notify the player, too, and set the return code.
+   */
+  
+  if (!mysql_struct) {
+    /* Try to reconnect. */
+    retries = 0;
+    while ((retries < MYSQL_RETRY_TIMES) && !mysql_struct) {
+      nanosleep((struct timespec[]){{0, 900000000}}, NULL)
+      sql_init(player);
+      retries++;
+    }
+  }
+  if (!mysql_struct || (mysql_ping(mysql_struct) != 0)) {
+    notify(player, "No SQL database connection.");
+    if (buff)
+      safe_str("#-1", buff, bp);
+    sql_shutdown(player);
+    return -1;
+  }
+
+  if (!q_string || !*q_string)
+    return 0;
+  
+  /* Send the query. */
+  
+  alarm_msec(5);
+  s_qstr = alloc_lbuf("tmp_q_string");
+  memset(s_qstr, '\0', LBUF_SIZE);
+  strncpy(s_qstr, q_string, LBUF_SIZE - 2);
+  got_rows = mysql_real_query(mysql_struct, s_qstr, strlen(s_qstr));
+  if ( mudstate.alarm_triggered ) {
+     notify(player, "The SQL engine forced a failure on a timeout.");
+     sql_shutdown(player);
+     mudstate.alarm_triggered = 0;
+     alarm_msec(next_timer());
+     free_lbuf(s_qstr);
+     return 0;
+  }
+  free_lbuf(s_qstr);
+  mudstate.alarm_triggered = 0;
+  alarm_msec(next_timer());
+
+
+  if ((got_rows) && (mysql_errno(mysql_struct) == CR_SERVER_GONE_ERROR)) {
+    
+    /* We got this error because the server died unexpectedly
+     * and it shouldn't have. Try repeatedly to reconnect before
+     * giving up and failing. This induces a few seconds of lag,
+     * depending on number of retries; we put in the sleep() here
+     * to see if waiting a little bit helps.
+     */
+    
+    retries = 0;
+    sql_shutdown(player);
+    
+    while ((retries < MYSQL_RETRY_TIMES) && (!mysql_struct)) {
+      nanosleep((struct timespec[]){{0, 900000000}}, NULL)
+      sql_init(player);
+      retries++;
+    }
+    
+    if (mysql_struct) {
+      alarm_msec(5);
+      s_qstr = alloc_lbuf("tmp_q_string");
+      memset(s_qstr, '\0', LBUF_SIZE);
+      strncpy(s_qstr, q_string, LBUF_SIZE - 2);
+      got_rows = mysql_real_query(mysql_struct, s_qstr, strlen(s_qstr));
+      if ( mudstate.alarm_triggered ) {
+         notify(player, "The SQL engine forced a failure on a timeout.");
+         sql_shutdown(player);
+         mudstate.alarm_triggered = 0;
+         alarm_msec(next_timer());
+         free_lbuf(s_qstr);
+         return 0;
+      }
+      free_lbuf(s_qstr);
+      mudstate.alarm_triggered = 0;
+      alarm_msec(next_timer());
+    }
+  }
+  if (got_rows) {
+    notify(player, mysql_error(mysql_struct));
+    if (buff)
+      safe_str("#-1", buff, bp);
+    return -1;
+  }
+  
+  /* A number of affected rows greater than 0 means it wasnt a SELECT */
+  
+  tprp_buff = tpr_buff = alloc_lbuf("sql_query");
+
+  num_rows = mysql_affected_rows(mysql_struct);
+  if (num_rows > 0) {
+    tprp_buff = tpr_buff;
+    notify(player, safe_tprintf(tpr_buff, &tprp_buff, "SQL query touched %d %s.",
+			   num_rows, (num_rows == 1) ? "row" : "rows"));
+    free_lbuf(tpr_buff);
+    return 0;
+  } else if (num_rows == 0) {
+    free_lbuf(tpr_buff);
+    return 0;
+  }
+  
+  /* Check to make sure we got rows back. */
+  
+  qres = mysql_store_result(mysql_struct);
+  got_rows = mysql_num_rows(qres);
+  if (got_rows == 0) {
+    mysql_free_result(qres);
+    free_lbuf(tpr_buff);
+    return 0;
+  }
+
+  /* Construct properly-delimited data. */
+  
+  if (buff) {
+    for (i = 0; i < got_rows; i++) {
+      if (i > 0) {
+        if ( row_delim != '\0' ) {
+	   print_sep(row_delim, buff, bp);
+        } else {
+	   print_sep(' ', buff, bp);
+        }
+      }
+      row_p = mysql_fetch_row(qres);
+      if (row_p) {
+	got_fields = mysql_num_fields(qres);
+	for (j = 0; j < got_fields; j++) {
+	  if (j > 0) {
+             if ( field_delim != '\0' ) {
+	       print_sep(field_delim, buff, bp);
+             } else {
+	       print_sep(' ', buff, bp);
+             }
+	  }
+	  if (row_p[j] && *row_p[j]) {
+	    safe_str(row_p[j], buff, bp);
+          } else if ( !row_p[j] ) {
+            break;
+          }
+	}
+      }
+    }
+  } else {
+    for (i = 0; i < got_rows; i++) {
+      row_p = mysql_fetch_row(qres);
+      if (row_p) {
+	got_fields = mysql_num_fields(qres);
+	for (j = 0; j < got_fields; j++) {
+          tprp_buff = tpr_buff;
+	  if (row_p[j] && *row_p[j]) {
+	    notify(player, safe_tprintf(tpr_buff, &tprp_buff, "Row %d, Field %d: %.3900s",
+				   i + 1, j + 1, row_p[j]));
+          } else if ( !row_p[j] ) {
             break;
          }
       }
